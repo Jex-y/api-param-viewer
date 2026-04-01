@@ -118,21 +118,22 @@ pub fn draw_tree(frame: &mut ratatui::Frame, app: &mut App, area: Rect) {
         let fraction = row.tokens as f64 / total_tokens as f64;
         let filled = (fraction * bar_max as f64).ceil() as usize;
         let empty = bar_max.saturating_sub(filled);
-        let bar_color = if is_selected {
-            Color::Black
+        let bar_color = heat_color(fraction);
+        let label_style = if is_selected {
+            Style::default().fg(bar_color).bg(Color::White)
         } else {
-            heat_color(fraction)
+            Style::default().fg(Color::DarkGray)
         };
-        let dim_style = if is_selected {
-            Style::default().fg(Color::Black).bg(Color::White)
+        let empty_style = if is_selected {
+            Style::default().fg(Color::DarkGray).bg(Color::White)
         } else {
             Style::default().fg(Color::DarkGray)
         };
 
         token_lines.push(Line::from(vec![
-            Span::styled(format!("{:>6} ", format_tokens_short(row.tokens)), dim_style),
-            Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
-            Span::styled("░".repeat(empty), Style::default().fg(Color::DarkGray)),
+            Span::styled(format!("{:>6} ", format_tokens_short(row.tokens)), label_style),
+            Span::styled("█".repeat(filled), Style::default().fg(bar_color).bg(if is_selected { Color::White } else { Color::Reset })),
+            Span::styled("░".repeat(empty), empty_style),
         ]));
     }
 

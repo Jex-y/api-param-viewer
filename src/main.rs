@@ -53,6 +53,94 @@ struct App {
     search_match_idx: Option<usize>,
 }
 
+/// Build a rich preview string for JSON objects, pulling out semantically useful fields.
+fn object_preview(obj: &serde_json::Map<String, Value>) -> String {
+    // Priority fields to show as identifying info
+    let label_fields = ["name", "role", "type", "id", "model", "title"];
+
+    let mut parts: Vec<String> = Vec::new();
+    for field in &label_fields {
+        if let Some(Value::String(v)) = obj.get(*field) {
+            let display = if v.len() > 30 {
+                format!("{}...", &v[..27])
+            } else {
+                v.clone()
+            };
+            parts.push(format!("{}={}", field, display));
+        }
+    }
+
+    // For content blocks, show extra context
+    if let Some(Value::String(t)) = obj.get("type") {
+        match t.as_str() {
+            "tool_use" => {
+                if let Some(Value::String(name)) = obj.get("name") {
+                    // name already captured above, but ensure it's there
+                    if !parts.iter().any(|p| p.starts_with("name=")) {
+                        parts.push(format!("name={}", name));
+                    }
+                }
+            }
+            "tool_result" => {
+                if let Some(Value::String(id)) = obj.get("tool_use_id") {
+                    let short = if id.len() > 20 { &id[..20] } else { id };
+                    if !parts.iter().any(|p| p.starts_with("id=")) {
+                        parts.push(format!("tool_id={}...", short));
+                    }
+                }
+            }
+            "text" => {
+                if let Some(Value::String(text)) = obj.get("text") {
+                    let chars: usize = text.len();
+                    parts.push(format!("{} chars", chars));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if parts.is_empty() {
+        let keys: Vec<_> = obj.keys().take(3).cloned().collect();
+        let suffix = if obj.len() > 3 { ", ..." } else { "" };
+        format!("{{{}{}}}", keys.join(", "), suffix)
+    } else {
+        format!("{{{}}}", parts.join(", "))
+    }
+}
+
+/// Build a label for an array child that includes semantic info from the item.
+fn array_child_label(index: usize, item: &Value) -> String {
+    if let Value::Object(obj) = item {
+        // Build a short tag from key identifying fields
+        let mut tag_parts: Vec<String> = Vec::new();
+
+        if let Some(Value::String(role)) = obj.get("role") {
+            tag_parts.push(role.clone());
+        }
+        if let Some(Value::String(t)) = obj.get("type") {
+            tag_parts.push(t.clone());
+            if t == "tool_use" {
+                if let Some(Value::String(name)) = obj.get("name") {
+                    tag_parts.push(name.clone());
+                }
+            }
+        }
+        if let Some(Value::String(name)) = obj.get("name") {
+            if !tag_parts.contains(name) {
+                tag_parts.push(name.clone());
+            }
+        }
+
+        if tag_parts.is_empty() {
+            format!("[{}]", index)
+        } else {
+            format!("[{}] {}", index, tag_parts.join(" "))
+        }
+    } else {
+        format!("[{}]", index)
+    }
+}
+
 impl App {
     fn new(root: Value) -> Self {
         let mut app = App {
@@ -105,15 +193,9 @@ impl App {
                 };
                 (display, false, Color::Green)
             }
-            Value::Array(arr) => (format!("Array[{}]", arr.len()), true, Color::Magenta),
+            Value::Array(arr) => (format!("[{}]", arr.len()), true, Color::Magenta),
             Value::Object(obj) => {
-                let keys: Vec<_> = obj.keys().take(4).cloned().collect();
-                let suffix = if obj.len() > 4 { ", ..." } else { "" };
-                (
-                    format!("{{{}{}}} ({} keys)", keys.join(", "), suffix, obj.len()),
-                    true,
-                    Color::Blue,
-                )
+                (object_preview(obj), true, Color::Blue)
             }
         };
 
@@ -133,7 +215,8 @@ impl App {
                     for (i, item) in arr.iter().enumerate() {
                         let mut child_path = path.to_vec();
                         child_path.push(PathSeg::Index(i));
-                        self.build_rows(item, depth + 1, &child_path, &format!("[{}]", i));
+                        let label = array_child_label(i, item);
+                        self.build_rows(item, depth + 1, &child_path, &label);
                     }
                 }
                 Value::Object(obj) => {
@@ -407,7 +490,7 @@ fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     // Main split
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+        .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(outer[1]);
 
     draw_tree(frame, app, main_chunks[0]);

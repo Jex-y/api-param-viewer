@@ -24,9 +24,9 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
 
     // Breadcrumb
     let breadcrumb = app.breadcrumb();
-    let selected_tokens = format_with_commas(app.selected_token_estimate());
-    let total_tokens = format_with_commas(app.token_estimate);
-    let context_limit = format_with_commas(app.context_limit);
+    let selected_tokens = format_k(app.selected_token_estimate());
+    let total_tokens = format_k(app.token_estimate);
+    let context_limit = format_k(app.context_limit);
     let bc_line = Line::from(vec![
         Span::styled(" Path: ", Style::default().fg(Color::DarkGray)),
         Span::styled(breadcrumb, Style::default().fg(Color::White)),
@@ -50,16 +50,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     draw_status_bar(frame, app, outer[2]);
 }
 
-fn format_with_commas(n: usize) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    for (i, c) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            result.push(',');
-        }
-        result.push(c);
+fn format_k(n: usize) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", n as f64 / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}k", n as f64 / 1_000.0)
+    } else {
+        n.to_string()
     }
-    result.chars().rev().collect()
 }
 
 fn draw_status_bar(frame: &mut ratatui::Frame, app: &App, area: ratatui::layout::Rect) {

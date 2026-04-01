@@ -24,9 +24,15 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
 
     // Breadcrumb
     let breadcrumb = app.breadcrumb();
+    let selected_tokens = format_with_commas(app.selected_token_estimate());
+    let total_tokens = format_with_commas(app.token_estimate);
     let bc_line = Line::from(vec![
         Span::styled(" Path: ", Style::default().fg(Color::DarkGray)),
         Span::styled(breadcrumb, Style::default().fg(Color::White)),
+        Span::styled("  |  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("~{} tokens", selected_tokens), Style::default().fg(Color::Yellow)),
+        Span::styled("  |  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("~{} total", total_tokens), Style::default().fg(Color::DarkGray)),
     ]);
     frame.render_widget(Paragraph::new(bc_line), outer[0]);
 
@@ -41,6 +47,18 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
 
     // Bottom bar
     draw_status_bar(frame, app, outer[2]);
+}
+
+fn format_with_commas(n: usize) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    for (i, c) in s.chars().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            result.push(',');
+        }
+        result.push(c);
+    }
+    result.chars().rev().collect()
 }
 
 fn draw_status_bar(frame: &mut ratatui::Frame, app: &App, area: ratatui::layout::Rect) {

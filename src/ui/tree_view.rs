@@ -1,5 +1,5 @@
 use ratatui::{
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
@@ -7,7 +7,6 @@ use ratatui::{
 
 use crate::app::App;
 
-/// Format a token count compactly: 1234 → "1.2k", 12345 → "12k", 123456 → "123k"
 fn format_tokens_short(n: usize) -> String {
     if n >= 1_000_000 {
         format!("{}M", n / 1_000_000)
@@ -20,7 +19,6 @@ fn format_tokens_short(n: usize) -> String {
     }
 }
 
-/// Map a fraction (0.0–1.0) to a heat color from dark to bright.
 fn heat_color(fraction: f64) -> Color {
     if fraction > 0.5 {
         Color::Red
@@ -33,13 +31,17 @@ fn heat_color(fraction: f64) -> Color {
     }
 }
 
-const BAR_WIDTH: usize = 10;
-// token count label (e.g. " 12.3k") + 1 space + bar
-const TOKEN_COL_WIDTH: usize = 7 + 1 + BAR_WIDTH;
+const TOKEN_COL_WIDTH: u16 = 16; // "  6.2k ████████"
 
 pub fn draw_tree(frame: &mut ratatui::Frame, app: &mut App, area: Rect) {
-    let inner_height = area.height.saturating_sub(2) as usize;
-    let inner_width = area.width.saturating_sub(2) as usize; // inside borders
+    // Draw the outer block first, then split the inner area
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(format!(" Tree ({} nodes) ", app.rows.len()));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let inner_height = inner.height as usize;
 
     if app.selected < app.scroll_offset {
         app.scroll_offset = app.selected;
@@ -47,9 +49,24 @@ pub fn draw_tree(frame: &mut ratatui::Frame, app: &mut App, area: Rect) {
         app.scroll_offset = app.selected - inner_height + 1;
     }
 
+    // Split inner area: tree content on left, token bars on right
+    let col_width = TOKEN_COL_WIDTH.min(inner.width / 3);
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(col_width),
+        ])
+        .split(inner);
+
+    let tree_area = chunks[0];
+    let token_area = chunks[1];
+    let bar_max = (col_width as usize).saturating_sub(7); // label takes ~7 chars
+
     let total_tokens = app.token_estimate.max(1);
 
-    let mut lines: Vec<Line> = Vec::new();
+    let mut tree_lines: Vec<Line> = Vec::new();
+    let mut token_lines: Vec<Line> = Vec::new();
     let visible_end = (app.scroll_offset + inner_height).min(app.rows.len());
 
     for i in app.scroll_offset..visible_end {
@@ -83,24 +100,24 @@ pub fn draw_tree(frame: &mut ratatui::Frame, app: &mut App, area: Rect) {
             Style::default().fg(row.type_color)
         };
 
-        // Build left side: indent + arrow + key + preview
-        let left_prefix = format!("{}{}", indent, arrow);
-        let key_text = format!("{}: ", row.key);
-        let left_len = left_prefix.len() + key_text.len() + row.preview.len();
+        // Tree content line
+        tree_lines.push(Line::from(vec![
+            Span::styled(
+                format!("{}{}", indent, arrow),
+                if is_selected {
+                    Style::default().fg(Color::Black).bg(Color::White)
+                } else {
+                    Style::default().fg(Color::DarkGray)
+                },
+            ),
+            Span::styled(format!("{}: ", row.key), key_style),
+            Span::styled(row.preview.clone(), val_style),
+        ]));
 
-        // Build right side: token bar
+        // Token bar line
         let fraction = row.tokens as f64 / total_tokens as f64;
-        let filled = (fraction * BAR_WIDTH as f64).ceil() as usize;
-        let empty = BAR_WIDTH.saturating_sub(filled);
-        let bar_filled: String = "█".repeat(filled);
-        let bar_empty: String = "░".repeat(empty);
-        let token_label = format!("{:>6} ", format_tokens_short(row.tokens));
-
-        // Pad between left content and right-aligned token column
-        let pad_len = inner_width
-            .saturating_sub(left_len + TOKEN_COL_WIDTH);
-        let padding = " ".repeat(pad_len);
-
+        let filled = (fraction * bar_max as f64).ceil() as usize;
+        let empty = bar_max.saturating_sub(filled);
         let bar_color = if is_selected {
             Color::Black
         } else {
@@ -112,29 +129,15 @@ pub fn draw_tree(frame: &mut ratatui::Frame, app: &mut App, area: Rect) {
             Style::default().fg(Color::DarkGray)
         };
 
-        let line = Line::from(vec![
-            Span::styled(
-                left_prefix,
-                if is_selected {
-                    Style::default().fg(Color::Black).bg(Color::White)
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                },
-            ),
-            Span::styled(key_text, key_style),
-            Span::styled(row.preview.clone(), val_style),
-            Span::styled(padding, dim_style),
-            Span::styled(token_label, dim_style),
-            Span::styled(bar_filled, Style::default().fg(bar_color)),
-            Span::styled(bar_empty, Style::default().fg(Color::DarkGray)),
-        ]);
-        lines.push(line);
+        token_lines.push(Line::from(vec![
+            Span::styled(format!("{:>6} ", format_tokens_short(row.tokens)), dim_style),
+            Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
+            Span::styled("░".repeat(empty), Style::default().fg(Color::DarkGray)),
+        ]));
     }
 
-    let title = format!(" Tree ({} nodes) ", app.rows.len());
-    let block = Block::default().borders(Borders::ALL).title(title);
-    let tree_widget = Paragraph::new(lines).block(block);
-    frame.render_widget(tree_widget, area);
+    frame.render_widget(Paragraph::new(tree_lines), tree_area);
+    frame.render_widget(Paragraph::new(token_lines), token_area);
 
     if app.rows.len() > inner_height {
         let mut scrollbar_state = ScrollbarState::new(app.rows.len().saturating_sub(inner_height))

@@ -15,10 +15,12 @@ pub struct App {
     pub search_query: String,
     pub search_matches: Vec<usize>,
     pub search_match_idx: Option<usize>,
+    pub token_estimate: usize,
 }
 
 impl App {
     pub fn new(root: Value) -> Self {
+        let token_estimate = serde_json::to_string(&root).unwrap_or_default().len() / 4;
         let mut app = App {
             root,
             rows: Vec::new(),
@@ -30,6 +32,7 @@ impl App {
             search_query: String::new(),
             search_matches: Vec::new(),
             search_match_idx: None,
+            token_estimate,
         };
         app.expanded_paths.insert(String::new());
         app.rebuild_rows();
@@ -94,6 +97,12 @@ impl App {
         self.rows
             .get(self.selected)
             .map(|row| self.resolve_path(&row.path))
+    }
+
+    pub fn selected_token_estimate(&self) -> usize {
+        self.selected_value()
+            .map(|v| serde_json::to_string(v).unwrap_or_default().len() / 4)
+            .unwrap_or(0)
     }
 
     pub fn breadcrumb(&self) -> String {

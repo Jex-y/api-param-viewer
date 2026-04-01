@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde_json::Value;
 
-use crate::tree::{array_child_label, path_key, value_preview, PathSeg, TreeRow};
+use crate::tree::{array_child_label, estimate_tokens, path_key, value_preview, PathSeg, TreeRow};
 
 pub struct App {
     root: Value,
@@ -58,6 +58,7 @@ impl App {
             expanded: is_expanded,
             path: path.to_vec(),
             type_color,
+            tokens: estimate_tokens(value),
         });
 
         if is_expanded {

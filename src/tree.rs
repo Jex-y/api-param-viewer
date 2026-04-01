@@ -10,6 +10,11 @@ pub struct TreeRow {
     pub expanded: bool,
     pub path: Vec<PathSeg>,
     pub type_color: Color,
+    pub tokens: usize,
+}
+
+pub fn estimate_tokens(value: &Value) -> usize {
+    serde_json::to_string(value).unwrap_or_default().len() / 4
 }
 
 #[derive(Clone)]

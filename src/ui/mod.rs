@@ -39,7 +39,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     // Main split
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
+        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
         .split(outer[1]);
 
     tree_view::draw_tree(frame, app, main_chunks[0]);

@@ -26,13 +26,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &mut App) {
     let breadcrumb = app.breadcrumb();
     let selected_tokens = format_with_commas(app.selected_token_estimate());
     let total_tokens = format_with_commas(app.token_estimate);
+    let context_limit = format_with_commas(app.context_limit);
     let bc_line = Line::from(vec![
         Span::styled(" Path: ", Style::default().fg(Color::DarkGray)),
         Span::styled(breadcrumb, Style::default().fg(Color::White)),
         Span::styled("  |  ", Style::default().fg(Color::DarkGray)),
         Span::styled(format!("~{} tokens", selected_tokens), Style::default().fg(Color::Yellow)),
         Span::styled("  |  ", Style::default().fg(Color::DarkGray)),
-        Span::styled(format!("~{} total", total_tokens), Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("~{}/{} ctx ({})", total_tokens, context_limit, app.model_name), Style::default().fg(Color::DarkGray)),
     ]);
     frame.render_widget(Paragraph::new(bc_line), outer[0]);
 

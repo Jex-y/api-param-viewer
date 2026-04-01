@@ -63,7 +63,7 @@ pub fn draw_tree(frame: &mut ratatui::Frame, app: &mut App, area: Rect) {
     let token_area = chunks[1];
     let bar_max = (col_width as usize).saturating_sub(7); // label takes ~7 chars
 
-    let total_tokens = app.token_estimate.max(1);
+    let total_tokens = app.context_limit.max(1);
 
     let mut tree_lines: Vec<Line> = Vec::new();
     let mut token_lines: Vec<Line> = Vec::new();

@@ -16,11 +16,60 @@ pub struct App {
     pub search_matches: Vec<usize>,
     pub search_match_idx: Option<usize>,
     pub token_estimate: usize,
+    pub context_limit: usize,
+    pub model_name: String,
+}
+
+fn model_context_limit(model: &str) -> usize {
+    let m = model.to_lowercase();
+    // Claude models
+    if m.contains("opus") && (m.contains("4-6") || m.contains("4.6")) {
+        return 1_000_000;
+    }
+    if m.contains("sonnet") && (m.contains("4-6") || m.contains("4.6")) {
+        return 1_000_000;
+    }
+    if m.contains("opus") || m.contains("sonnet") {
+        return 200_000;
+    }
+    if m.contains("claude-3") || m.contains("haiku") {
+        return 200_000;
+    }
+    if m.contains("claude") {
+        return 200_000;
+    }
+    // OpenAI models
+    if m.contains("gpt-4o") || m.contains("gpt-4-turbo") {
+        return 128_000;
+    }
+    if m.contains("gpt-4-32k") {
+        return 32_768;
+    }
+    if m.contains("gpt-4") {
+        return 8_192;
+    }
+    if m.contains("gpt-3.5") {
+        return 16_385;
+    }
+    if m.contains("o1") || m.contains("o3") || m.contains("o4") {
+        return 200_000;
+    }
+    // Google models
+    if m.contains("gemini") {
+        return 1_000_000;
+    }
+    // Default fallback
+    128_000
 }
 
 impl App {
     pub fn new(root: Value) -> Self {
         let token_estimate = serde_json::to_string(&root).unwrap_or_default().len() / 4;
+        let model_name = root.get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let context_limit = model_context_limit(&model_name);
         let mut app = App {
             root,
             rows: Vec::new(),
@@ -33,6 +82,8 @@ impl App {
             search_matches: Vec::new(),
             search_match_idx: None,
             token_estimate,
+            context_limit,
+            model_name,
         };
         app.expanded_paths.insert(String::new());
         app.rebuild_rows();

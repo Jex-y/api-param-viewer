@@ -95,8 +95,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Event::Mouse(mouse) if !app.search_mode => match mouse.kind {
-                    MouseEventKind::ScrollUp => app.move_up(),
-                    MouseEventKind::ScrollDown => app.move_down(),
+                    MouseEventKind::ScrollUp => {
+                        app.detail_scroll = app.detail_scroll.saturating_sub(3)
+                    }
+                    MouseEventKind::ScrollDown => app.detail_scroll += 3,
                     _ => {}
                 },
                 _ => {}
